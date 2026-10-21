@@ -1,0 +1,74 @@
+name: Build FIPS cert-manager image
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Upstream version to build (e.g. 1.21.2)'
+        required: false
+        default: '1.21.2'
+
+permissions:
+  packages: write
+
+jobs:
+  build-amd64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push amd64 images
+        env:
+          VERSION: ${{ github.event.inputs.version }}
+          IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager
+          ARCH: amd64
+        run: |
+          bash build-cert-manager-fips.sh
+          for COMPONENT in controller acmesolver cainjector webhook startupapicheck; do
+            docker push ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-${COMPONENT}:${VERSION}-amd64
+          done
+
+  build-arm64:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push arm64 images
+        env:
+          VERSION: ${{ github.event.inputs.version }}
+          IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager
+          ARCH: arm64
+        run: |
+          bash build-cert-manager-fips.sh
+          for COMPONENT in controller acmesolver cainjector webhook startupapicheck; do
+            docker push ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-${COMPONENT}:${VERSION}-arm64
+          done
+
+  push-manifest:
+    runs-on: ubuntu-latest
+    needs: [build-amd64, build-arm64]
+    steps:
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create and push manifest lists
+        env:
+          VERSION: ${{ github.event.inputs.version }}
+        run: |
+          for COMPONENT in controller acmesolver cainjector webhook startupapicheck; do
+            docker manifest create \
+              ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-${COMPONENT}:${VERSION} \
+              ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-${COMPONENT}:${VERSION}-amd64 \
+              ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-${COMPONENT}:${VERSION}-arm64
+            docker manifest push ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-${COMPONENT}:${VERSION}
+          done
