@@ -30,6 +30,7 @@ jobs:
         run: |
           VERSION="${VERSION#release/v}"
           VERSION="${VERSION#release/}"
+          [[ "$VERSION" =~ ^[0-9] ]] || VERSION=$(grep -m1 'VERSION:-' build-cert-manager-fips.sh | grep -oP '(?<=VERSION:-)[^}]+')
           bash build-cert-manager-fips.sh
           for COMPONENT in controller acmesolver cainjector webhook startupapicheck; do
             docker push ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-${COMPONENT}:${VERSION}-amd64
@@ -52,6 +53,7 @@ jobs:
         run: |
           VERSION="${VERSION#release/v}"
           VERSION="${VERSION#release/}"
+          [[ "$VERSION" =~ ^[0-9] ]] || VERSION=$(grep -m1 'VERSION:-' build-cert-manager-fips.sh | grep -oP '(?<=VERSION:-)[^}]+')
           bash build-cert-manager-fips.sh
           for COMPONENT in controller acmesolver cainjector webhook startupapicheck; do
             docker push ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-${COMPONENT}:${VERSION}-arm64
@@ -72,6 +74,7 @@ jobs:
         run: |
           VERSION="${VERSION#release/v}"
           VERSION="${VERSION#release/}"
+          [[ "$VERSION" =~ ^[0-9] ]] || VERSION=$(grep -m1 'VERSION:-' build-cert-manager-fips.sh | grep -oP '(?<=VERSION:-)[^}]+')
           for COMPONENT in controller acmesolver cainjector webhook startupapicheck; do
             docker manifest create \
               ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-${COMPONENT}:${VERSION} \
