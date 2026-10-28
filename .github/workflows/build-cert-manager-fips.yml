@@ -1,6 +1,7 @@
 name: Build FIPS cert-manager image
 
 on:
+  pull_request:
   workflow_dispatch:
     inputs:
       version:
@@ -23,10 +24,13 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and push amd64 images
         env:
-          VERSION: ${{ github.event.inputs.version }}
+          VERSION: ${{ github.event.inputs.version || github.head_ref || github.ref_name }}
           IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager
           ARCH: amd64
         run: |
+          VERSION="${VERSION#release/v}"
+          VERSION="${VERSION#release/}"
+          [[ "$VERSION" =~ ^[0-9] ]] || VERSION=$(grep -m1 'VERSION:-' build-cert-manager-fips.sh | grep -oP '(?<=VERSION:-)[^}]+')
           bash build-cert-manager-fips.sh
           for COMPONENT in controller acmesolver cainjector webhook startupapicheck; do
             docker push ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-${COMPONENT}:${VERSION}-amd64
@@ -43,10 +47,13 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and push arm64 images
         env:
-          VERSION: ${{ github.event.inputs.version }}
+          VERSION: ${{ github.event.inputs.version || github.head_ref || github.ref_name }}
           IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager
           ARCH: arm64
         run: |
+          VERSION="${VERSION#release/v}"
+          VERSION="${VERSION#release/}"
+          [[ "$VERSION" =~ ^[0-9] ]] || VERSION=$(grep -m1 'VERSION:-' build-cert-manager-fips.sh | grep -oP '(?<=VERSION:-)[^}]+')
           bash build-cert-manager-fips.sh
           for COMPONENT in controller acmesolver cainjector webhook startupapicheck; do
             docker push ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-${COMPONENT}:${VERSION}-arm64
@@ -56,6 +63,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build-amd64, build-arm64]
     steps:
+      - uses: actions/checkout@v4
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -63,8 +71,11 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Create and push manifest lists
         env:
-          VERSION: ${{ github.event.inputs.version }}
+          VERSION: ${{ github.event.inputs.version || github.head_ref || github.ref_name }}
         run: |
+          VERSION="${VERSION#release/v}"
+          VERSION="${VERSION#release/}"
+          [[ "$VERSION" =~ ^[0-9] ]] || VERSION=$(grep -m1 'VERSION:-' build-cert-manager-fips.sh | grep -oP '(?<=VERSION:-)[^}]+')
           for COMPONENT in controller acmesolver cainjector webhook startupapicheck; do
             docker manifest create \
               ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-${COMPONENT}:${VERSION} \
