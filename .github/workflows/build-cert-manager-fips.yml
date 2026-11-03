@@ -52,13 +52,11 @@ jobs:
           for COMPONENT in controller acmesolver cainjector webhook startupapicheck; do
             docker push ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-${COMPONENT}:${VERSION}-amd64
           done
-      - name: List SBOM files
-        run: find .build -name '*.cdx.json' -type f
       - name: Upload SBOM artifact
         uses: actions/upload-artifact@v4
         with:
           name: sbom-amd64
-          path: .build/**/*.cdx.json
+          path: .build/cert-manager-fips-build/*.cdx.json
           if-no-files-found: error
 
   build-arm64:
@@ -95,13 +93,11 @@ jobs:
           for COMPONENT in controller acmesolver cainjector webhook startupapicheck; do
             docker push ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-${COMPONENT}:${VERSION}-arm64
           done
-      - name: List SBOM files
-        run: find .build -name '*.cdx.json' -type f
       - name: Upload SBOM artifact
         uses: actions/upload-artifact@v4
         with:
           name: sbom-arm64
-          path: .build/**/*.cdx.json
+          path: .build/cert-manager-fips-build/*.cdx.json
           if-no-files-found: error
 
   push-manifest:
