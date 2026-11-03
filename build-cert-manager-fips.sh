@@ -17,6 +17,8 @@ GO_IMAGE="${GO_IMAGE:-golang:1.26-bookworm}"
 check_tool() { command -v "$1" &>/dev/null || { echo "error: $1 not found" >&2; exit 1; }; }
 check_tool git
 check_tool docker
+check_tool curl
+check_tool jq
 docker buildx version &>/dev/null || { echo "error: docker buildx not available" >&2; exit 1; }
 
 # --- buildx driver -----------------------------------------------------------
@@ -121,4 +123,58 @@ echo ""
 echo "All images built successfully:"
 for COMPONENT in controller acmesolver cainjector webhook startupapicheck; do
     echo "  ${IMAGE_PREFIX}-${COMPONENT}:${VERSION}-${ARCH}"
+done
+
+# --- SBOM --------------------------------------------------------------------
+# Syft version is pinned; update SYFT_VERSION to pick up a newer release.
+SYFT_VERSION="${SYFT_VERSION:-1.56.0}"
+SYFT_BIN="${WORKDIR}/syft"
+
+install_syft() {
+    local arch_syft
+    arch_syft=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+    local tarball="syft_${SYFT_VERSION}_linux_${arch_syft}.tar.gz"
+    local checksum_file="syft_${SYFT_VERSION}_checksums.txt"
+    local base_url="https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}"
+
+    curl -sSfL "${base_url}/${tarball}"       -o "/tmp/${tarball}"
+    curl -sSfL "${base_url}/${checksum_file}" -o "/tmp/${checksum_file}"
+    grep "${tarball}" "/tmp/${checksum_file}" | (cd /tmp && sha256sum -c)
+    tar -xzf "/tmp/${tarball}" -C "${WORKDIR}" syft
+    chmod +x "${SYFT_BIN}"
+}
+
+{ [ -x "${SYFT_BIN}" ] && "${SYFT_BIN}" version 2>/dev/null | grep -q "${SYFT_VERSION}"; } || install_syft
+
+# Generate one SBOM per component image (phase 2: image scan only — Go binaries
+# embed full module metadata in the binary via runtime/debug.ReadBuildInfo).
+for COMPONENT in controller acmesolver cainjector webhook startupapicheck; do
+    IMAGE_TAG="${IMAGE_PREFIX}-${COMPONENT}:${VERSION}-${ARCH}"
+    SBOM_IMAGE="${WORKDIR}/${IMAGE_PREFIX}-${COMPONENT}-${VERSION}-${ARCH}-image.cdx.json"
+    SBOM_OUT="${WORKDIR}/${IMAGE_PREFIX}-${COMPONENT}-${VERSION}-${ARCH}.cdx.json"
+
+    "${SYFT_BIN}" "${IMAGE_TAG}" \
+        --select-catalogers "go-module-binary-cataloger,dpkg-db-cataloger" \
+        --output "cyclonedx-json=${SBOM_IMAGE}"
+
+    jq \
+        --arg name "cert-manager-${COMPONENT}" \
+        --arg version "${VERSION}" \
+        --arg purl "pkg:oci/gl-fips-cert-manager-${COMPONENT}@${VERSION}?arch=${ARCH}" \
+        --arg revision "${UPSTREAM_GIT_SHA}" \
+        --arg arch "${ARCH}" \
+        '.metadata.lifecycles = [{"phase": "post-build"}] |
+         .metadata.component = {
+           "type": "application",
+           "name": $name,
+           "version": $version,
+           "purl": $purl,
+           "properties": [
+             {"name": "org.opencontainers.image.revision", "value": $revision},
+             {"name": "arch", "value": $arch}
+           ]
+         }' \
+        "${SBOM_IMAGE}" > "${SBOM_OUT}"
+
+    echo "SBOM: ${SBOM_OUT}"
 done
