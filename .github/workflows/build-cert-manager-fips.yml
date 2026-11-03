@@ -56,7 +56,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: sbom-amd64
-          path: .build/*/**.cdx.json
+          path: .build/**/*.cdx.json
           if-no-files-found: error
 
   build-arm64:
@@ -97,7 +97,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: sbom-arm64
-          path: .build/*/**.cdx.json
+          path: .build/**/*.cdx.json
           if-no-files-found: error
 
   push-manifest:
