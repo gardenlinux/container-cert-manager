@@ -154,7 +154,6 @@ for COMPONENT in controller acmesolver cainjector webhook startupapicheck; do
     SBOM_OUT="${WORKDIR}/${IMAGE_PREFIX}-${COMPONENT}-${VERSION}-${ARCH}.cdx.json"
 
     "${SYFT_BIN}" "${IMAGE_TAG}" \
-        --select-catalogers "go-module-binary-cataloger,dpkg-db-cataloger" \
         --output "cyclonedx-json=${SBOM_IMAGE}"
 
     jq \
