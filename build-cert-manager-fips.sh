@@ -8,7 +8,7 @@ BASE_IMAGE="${BASE_IMAGE:-ghcr.io/gardenlinux/gardenlinux/fips:1877.22}"
 WORKDIR="${WORKDIR:-./.build/cert-manager-fips-build}"
 IMAGE_PREFIX="${IMAGE_PREFIX:-gl-fips-cert-manager}"
 ARCH="${ARCH:-$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')}"
-VERSION="${VERSION:-1.21.2}"
+VERSION="${VERSION:-1.21.3}"
 UPSTREAM_GIT_SHA="${UPSTREAM_GIT_SHA:-922a06aa49ee4bb802db268ef72a174af70edd32}"
 GO_IMAGE="${GO_IMAGE:-golang:1.26-bookworm}"
 
