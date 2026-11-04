@@ -147,13 +147,21 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${VERSION:-$(grep -m1 'VERSION:-' build-cert-manager-fips.sh | grep -oP '(?<=VERSION:-)[^}]+')}"
+          {
+            echo "FIPS-enabled cert-manager image v${VERSION}"
+            echo ""
+            for COMPONENT in controller acmesolver cainjector webhook startupapicheck; do
+              echo "docker pull ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-${COMPONENT}:${VERSION}"
+            done
+          } > /tmp/release-notes.md
           gh release create "v${VERSION}" \
             --repo "${{ github.repository }}" \
             --title "v${VERSION}" \
-            --notes "FIPS-enabled cert-manager image v${VERSION}" \
+            --notes-file /tmp/release-notes.md \
             || gh release edit "v${VERSION}" \
                  --repo "${{ github.repository }}" \
-                 --title "v${VERSION}"
+                 --title "v${VERSION}" \
+                 --notes-file /tmp/release-notes.md
           gh release upload "v${VERSION}" \
             --repo "${{ github.repository }}" \
             --clobber \
