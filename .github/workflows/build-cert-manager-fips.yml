@@ -151,7 +151,10 @@ jobs:
             echo "FIPS-enabled cert-manager image v${VERSION}"
             echo ""
             for COMPONENT in controller acmesolver cainjector webhook startupapicheck; do
+              echo '```'
               echo "docker pull ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-${COMPONENT}:${VERSION}"
+              echo '```'
+              echo ""
             done
           } > /tmp/release-notes.md
           gh release create "v${VERSION}" \
