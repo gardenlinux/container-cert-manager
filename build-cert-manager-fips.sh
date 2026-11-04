@@ -151,11 +151,11 @@ install_syft() {
 IMAGE_PREFIX_BASE=$(basename "${IMAGE_PREFIX}")
 for COMPONENT in controller acmesolver cainjector webhook startupapicheck; do
     IMAGE_TAG="${IMAGE_PREFIX}-${COMPONENT}:${VERSION}-${ARCH}"
-    SBOM_IMAGE="${WORKDIR}/${IMAGE_PREFIX_BASE}-${COMPONENT}-${VERSION}-${ARCH}-image.cdx.json"
+    SBOM_TMP="${WORKDIR}/${IMAGE_PREFIX_BASE}-${COMPONENT}-${VERSION}-${ARCH}.raw.cdx.json"
     SBOM_OUT="${WORKDIR}/${IMAGE_PREFIX_BASE}-${COMPONENT}-${VERSION}-${ARCH}.cdx.json"
 
     "${SYFT_BIN}" "${IMAGE_TAG}" \
-        --output "cyclonedx-json=${SBOM_IMAGE}"
+        --output "cyclonedx-json=${SBOM_TMP}"
 
     jq \
         --arg name "cert-manager-${COMPONENT}" \
@@ -174,7 +174,8 @@ for COMPONENT in controller acmesolver cainjector webhook startupapicheck; do
              {"name": "arch", "value": $arch}
            ]
          }' \
-        "${SBOM_IMAGE}" > "${SBOM_OUT}"
+        "${SBOM_TMP}" > "${SBOM_OUT}"
 
+    rm "${SBOM_TMP}"
     echo "SBOM: ${SBOM_OUT}"
 done
