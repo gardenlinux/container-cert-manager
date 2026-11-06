@@ -87,6 +87,7 @@ jobs:
       version: ${{ needs.check.outputs.new_version }}
     permissions:
       packages: write
+      contents: write
 
   open-pr:
     runs-on: ubuntu-24.04
