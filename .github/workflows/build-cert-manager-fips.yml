@@ -106,6 +106,12 @@ jobs:
   push-manifest:
     runs-on: ubuntu-24.04
     needs: [build-amd64, build-arm64]
+    outputs:
+      image_digest_controller: ${{ steps.manifest.outputs.image_digest_controller }}
+      image_digest_acmesolver: ${{ steps.manifest.outputs.image_digest_acmesolver }}
+      image_digest_cainjector: ${{ steps.manifest.outputs.image_digest_cainjector }}
+      image_digest_webhook: ${{ steps.manifest.outputs.image_digest_webhook }}
+      image_digest_startupapicheck: ${{ steps.manifest.outputs.image_digest_startupapicheck }}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/login-action@v3
@@ -114,6 +120,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Create and push manifest lists
+        id: manifest
         env:
           VERSION: ${{ inputs.version || github.event.inputs.version }}
         run: |
@@ -125,6 +132,26 @@ jobs:
               ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-${COMPONENT}:${VERSION}-arm64
             docker manifest push ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-${COMPONENT}:${VERSION}
           done
+          DIGEST_controller=$(docker manifest inspect \
+            ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-controller:${VERSION} \
+            | jq -r '[.[].Descriptor.digest][0]')
+          echo "image_digest_controller=${DIGEST_controller}" >> "$GITHUB_OUTPUT"
+          DIGEST_acmesolver=$(docker manifest inspect \
+            ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-acmesolver:${VERSION} \
+            | jq -r '[.[].Descriptor.digest][0]')
+          echo "image_digest_acmesolver=${DIGEST_acmesolver}" >> "$GITHUB_OUTPUT"
+          DIGEST_cainjector=$(docker manifest inspect \
+            ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-cainjector:${VERSION} \
+            | jq -r '[.[].Descriptor.digest][0]')
+          echo "image_digest_cainjector=${DIGEST_cainjector}" >> "$GITHUB_OUTPUT"
+          DIGEST_webhook=$(docker manifest inspect \
+            ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-webhook:${VERSION} \
+            | jq -r '[.[].Descriptor.digest][0]')
+          echo "image_digest_webhook=${DIGEST_webhook}" >> "$GITHUB_OUTPUT"
+          DIGEST_startupapicheck=$(docker manifest inspect \
+            ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-startupapicheck:${VERSION} \
+            | jq -r '[.[].Descriptor.digest][0]')
+          echo "image_digest_startupapicheck=${DIGEST_startupapicheck}" >> "$GITHUB_OUTPUT"
 
   release:
     runs-on: ubuntu-24.04
@@ -144,6 +171,40 @@ jobs:
         with:
           name: sbom-arm64
           path: sbom/
+      - name: Download build logs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/logs \
+            > /tmp/build-logs-${{ github.run_id }}.zip
+
+      - name: Generate SLSA provenance
+        env:
+          VERSION: ${{ inputs.version || github.event.inputs.version }}
+          IMAGE_DIGEST_controller: ${{ needs.push-manifest.outputs.image_digest_controller }}
+          IMAGE_DIGEST_acmesolver: ${{ needs.push-manifest.outputs.image_digest_acmesolver }}
+          IMAGE_DIGEST_cainjector: ${{ needs.push-manifest.outputs.image_digest_cainjector }}
+          IMAGE_DIGEST_webhook: ${{ needs.push-manifest.outputs.image_digest_webhook }}
+          IMAGE_DIGEST_startupapicheck: ${{ needs.push-manifest.outputs.image_digest_startupapicheck }}
+        run: |
+          VERSION="${VERSION:-$(grep -m1 'VERSION:-' build-cert-manager-fips.sh | grep -oP '(?<=VERSION:-)[^}]+')}"
+          python3 generate-provenance.py \
+            --app cert-manager \
+            --version "${VERSION}" \
+            --image-name "ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-controller:${VERSION}" \
+            --image-digest "${{ needs.push-manifest.outputs.image_digest_controller }}" \
+            --image-name "ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-acmesolver:${VERSION}" \
+            --image-digest "${{ needs.push-manifest.outputs.image_digest_acmesolver }}" \
+            --image-name "ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-cainjector:${VERSION}" \
+            --image-digest "${{ needs.push-manifest.outputs.image_digest_cainjector }}" \
+            --image-name "ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-webhook:${VERSION}" \
+            --image-digest "${{ needs.push-manifest.outputs.image_digest_webhook }}" \
+            --image-name "ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-startupapicheck:${VERSION}" \
+            --image-digest "${{ needs.push-manifest.outputs.image_digest_startupapicheck }}" \
+            --sbom-dir sbom/ \
+            --log-zip /tmp/build-logs-${{ github.run_id }}.zip \
+            --output /tmp/provenance.json
+
       - name: Publish GitHub Release with SBOMs
         env:
           VERSION: ${{ inputs.version || github.event.inputs.version }}
@@ -171,4 +232,6 @@ jobs:
           gh release upload "v${VERSION}" \
             --repo "${{ github.repository }}" \
             --clobber \
-            sbom/*.cdx.json
+            sbom/*.cdx.json \
+            /tmp/provenance.json \
+            /tmp/build-logs-${{ github.run_id }}.zip
