@@ -134,23 +134,23 @@ jobs:
           done
           DIGEST_controller=$(docker manifest inspect \
             ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-controller:${VERSION} \
-            | jq -r '[.[].Descriptor.digest][0]')
+            | jq -r '.manifests[0].digest')
           echo "image_digest_controller=${DIGEST_controller}" >> "$GITHUB_OUTPUT"
           DIGEST_acmesolver=$(docker manifest inspect \
             ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-acmesolver:${VERSION} \
-            | jq -r '[.[].Descriptor.digest][0]')
+            | jq -r '.manifests[0].digest')
           echo "image_digest_acmesolver=${DIGEST_acmesolver}" >> "$GITHUB_OUTPUT"
           DIGEST_cainjector=$(docker manifest inspect \
             ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-cainjector:${VERSION} \
-            | jq -r '[.[].Descriptor.digest][0]')
+            | jq -r '.manifests[0].digest')
           echo "image_digest_cainjector=${DIGEST_cainjector}" >> "$GITHUB_OUTPUT"
           DIGEST_webhook=$(docker manifest inspect \
             ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-webhook:${VERSION} \
-            | jq -r '[.[].Descriptor.digest][0]')
+            | jq -r '.manifests[0].digest')
           echo "image_digest_webhook=${DIGEST_webhook}" >> "$GITHUB_OUTPUT"
           DIGEST_startupapicheck=$(docker manifest inspect \
             ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-startupapicheck:${VERSION} \
-            | jq -r '[.[].Descriptor.digest][0]')
+            | jq -r '.manifests[0].digest')
           echo "image_digest_startupapicheck=${DIGEST_startupapicheck}" >> "$GITHUB_OUTPUT"
 
   release:
