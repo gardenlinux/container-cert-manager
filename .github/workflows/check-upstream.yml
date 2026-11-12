@@ -114,7 +114,7 @@ jobs:
             git checkout -b "${BRANCH}"
           fi
 
-          sed -i "s|^VERSION="${VERSION:-[^}]*}"|VERSION="${VERSION:-${VERSION}}"|" \
+          sed -i 's|^VERSION="${VERSION:-[^}]*}"|VERSION="${VERSION:-'"${VERSION}"'}"|' \
             build-cert-manager-fips.sh
 
           git add build-cert-manager-fips.sh
