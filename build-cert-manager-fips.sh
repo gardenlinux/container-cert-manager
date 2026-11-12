@@ -127,7 +127,7 @@ done
 
 # --- SBOM --------------------------------------------------------------------
 # Syft version is pinned; update SYFT_VERSION to pick up a newer release.
-SYFT_VERSION="${SYFT_VERSION:-1.56.0}"
+SYFT_VERSION="${SYFT_VERSION:-1.57.1}"
 SYFT_BIN="${WORKDIR}/syft"
 
 install_syft() {
