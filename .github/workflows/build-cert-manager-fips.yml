@@ -23,6 +23,12 @@ permissions:
 jobs:
   build-amd64:
     runs-on: ubuntu-24.04
+    outputs:
+      image_digest_controller: ${{ steps.push.outputs.digest_controller }}
+      image_digest_acmesolver: ${{ steps.push.outputs.digest_acmesolver }}
+      image_digest_cainjector: ${{ steps.push.outputs.digest_cainjector }}
+      image_digest_webhook: ${{ steps.push.outputs.digest_webhook }}
+      image_digest_startupapicheck: ${{ steps.push.outputs.digest_startupapicheck }}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/login-action@v3
@@ -45,6 +51,7 @@ jobs:
               (cd /tmp/syft-install && sha256sum -c)
           tar -xzf "/tmp/syft-install/syft_${SYFT_VERSION}_linux_${ARCH_SYFT}.tar.gz" -C /usr/local/bin syft
       - name: Build and push amd64 images
+        id: push
         env:
           VERSION: ${{ inputs.version || github.event.inputs.version }}
           IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager
@@ -54,6 +61,9 @@ jobs:
           bash build-cert-manager-fips.sh
           for COMPONENT in controller acmesolver cainjector webhook startupapicheck; do
             docker push ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-${COMPONENT}:${VERSION}-amd64
+            DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' \
+              ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-${COMPONENT}:${VERSION}-amd64 | cut -d@ -f2)
+            echo "digest_${COMPONENT}=${DIGEST}" >> "$GITHUB_OUTPUT"
           done
       - name: Upload SBOM artifact
         uses: actions/upload-artifact@v4
@@ -64,6 +74,12 @@ jobs:
 
   build-arm64:
     runs-on: ubuntu-24.04-arm
+    outputs:
+      image_digest_controller: ${{ steps.push.outputs.digest_controller }}
+      image_digest_acmesolver: ${{ steps.push.outputs.digest_acmesolver }}
+      image_digest_cainjector: ${{ steps.push.outputs.digest_cainjector }}
+      image_digest_webhook: ${{ steps.push.outputs.digest_webhook }}
+      image_digest_startupapicheck: ${{ steps.push.outputs.digest_startupapicheck }}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/login-action@v3
@@ -86,6 +102,7 @@ jobs:
               (cd /tmp/syft-install && sha256sum -c)
           tar -xzf "/tmp/syft-install/syft_${SYFT_VERSION}_linux_${ARCH_SYFT}.tar.gz" -C /usr/local/bin syft
       - name: Build and push arm64 images
+        id: push
         env:
           VERSION: ${{ inputs.version || github.event.inputs.version }}
           IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager
@@ -95,6 +112,9 @@ jobs:
           bash build-cert-manager-fips.sh
           for COMPONENT in controller acmesolver cainjector webhook startupapicheck; do
             docker push ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-${COMPONENT}:${VERSION}-arm64
+            DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' \
+              ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-${COMPONENT}:${VERSION}-arm64 | cut -d@ -f2)
+            echo "digest_${COMPONENT}=${DIGEST}" >> "$GITHUB_OUTPUT"
           done
       - name: Upload SBOM artifact
         uses: actions/upload-artifact@v4
@@ -159,8 +179,16 @@ jobs:
     if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
     permissions:
       contents: write
+      id-token: write
+      attestations: write
+      packages: write
     steps:
       - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Download amd64 SBOM artifact
         uses: actions/download-artifact@v4
         with:
@@ -171,6 +199,70 @@ jobs:
         with:
           name: sbom-arm64
           path: sbom/
+      - name: Attest amd64 controller image
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-controller
+          subject-digest: ${{ needs.build-amd64.outputs.image_digest_controller }}
+          push-to-registry: true
+      - name: Attest arm64 controller image
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-controller
+          subject-digest: ${{ needs.build-arm64.outputs.image_digest_controller }}
+          push-to-registry: true
+      - name: Attest amd64 acmesolver image
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-acmesolver
+          subject-digest: ${{ needs.build-amd64.outputs.image_digest_acmesolver }}
+          push-to-registry: true
+      - name: Attest arm64 acmesolver image
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-acmesolver
+          subject-digest: ${{ needs.build-arm64.outputs.image_digest_acmesolver }}
+          push-to-registry: true
+      - name: Attest amd64 cainjector image
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-cainjector
+          subject-digest: ${{ needs.build-amd64.outputs.image_digest_cainjector }}
+          push-to-registry: true
+      - name: Attest arm64 cainjector image
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-cainjector
+          subject-digest: ${{ needs.build-arm64.outputs.image_digest_cainjector }}
+          push-to-registry: true
+      - name: Attest amd64 webhook image
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-webhook
+          subject-digest: ${{ needs.build-amd64.outputs.image_digest_webhook }}
+          push-to-registry: true
+      - name: Attest arm64 webhook image
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-webhook
+          subject-digest: ${{ needs.build-arm64.outputs.image_digest_webhook }}
+          push-to-registry: true
+      - name: Attest amd64 startupapicheck image
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-startupapicheck
+          subject-digest: ${{ needs.build-amd64.outputs.image_digest_startupapicheck }}
+          push-to-registry: true
+      - name: Attest arm64 startupapicheck image
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-startupapicheck
+          subject-digest: ${{ needs.build-arm64.outputs.image_digest_startupapicheck }}
+          push-to-registry: true
+      - name: Attest SBOMs
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: sbom/*.cdx.json
       - name: Generate SLSA provenance
         env:
           VERSION: ${{ inputs.version || github.event.inputs.version }}
@@ -212,6 +304,25 @@ jobs:
               echo '```'
               echo ""
             done
+            echo "## Verify attestations"
+            echo ""
+            echo "### Container images"
+            echo '```'
+            for COMPONENT in controller acmesolver cainjector webhook startupapicheck; do
+              echo "gh attestation verify oci://ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-${COMPONENT}:${VERSION}-amd64 --repo ${{ github.repository }}"
+              echo "gh attestation verify oci://ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-${COMPONENT}:${VERSION}-arm64 --repo ${{ github.repository }}"
+            done
+            echo '```'
+            echo ""
+            echo "### SBOMs"
+            echo '```'
+            for COMPONENT in controller acmesolver cainjector webhook startupapicheck; do
+              echo "curl -LO https://github.com/${{ github.repository }}/releases/download/v${VERSION}/gl-fips-cert-manager-${COMPONENT}-${VERSION}-amd64.cdx.json"
+              echo "curl -LO https://github.com/${{ github.repository }}/releases/download/v${VERSION}/gl-fips-cert-manager-${COMPONENT}-${VERSION}-arm64.cdx.json"
+              echo "gh attestation verify gl-fips-cert-manager-${COMPONENT}-${VERSION}-amd64.cdx.json --repo ${{ github.repository }}"
+              echo "gh attestation verify gl-fips-cert-manager-${COMPONENT}-${VERSION}-arm64.cdx.json --repo ${{ github.repository }}"
+            done
+            echo '```'
           } > /tmp/release-notes.md
           gh release create "v${VERSION}" \
             --repo "${{ github.repository }}" \
