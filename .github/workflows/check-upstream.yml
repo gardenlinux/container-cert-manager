@@ -2,7 +2,7 @@ name: Check upstream cert-manager release
 
 on:
   schedule:
-    - cron: '17 6 * * *'
+    - cron: '0 2 * * *'
   workflow_dispatch:
     inputs:
       upstream_repo:
