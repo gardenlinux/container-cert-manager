@@ -17,12 +17,13 @@ on:
         required: false
         default: ''
 permissions:
-  packages: write
-  contents: write
+  contents: read
 
 jobs:
   build-amd64:
     runs-on: ubuntu-24.04
+    permissions:
+      packages: write
     outputs:
       image_digest_controller: ${{ steps.push.outputs.digest_controller }}
       image_digest_acmesolver: ${{ steps.push.outputs.digest_acmesolver }}
@@ -30,8 +31,10 @@ jobs:
       image_digest_webhook: ${{ steps.push.outputs.digest_webhook }}
       image_digest_startupapicheck: ${{ steps.push.outputs.digest_startupapicheck }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/login-action@v3
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          persist-credentials: false
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -61,12 +64,14 @@ jobs:
           bash build-cert-manager-fips.sh
           for COMPONENT in controller acmesolver cainjector webhook startupapicheck; do
             docker push ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-${COMPONENT}:${VERSION}-amd64
+            sleep 3
             DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' \
               ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-${COMPONENT}:${VERSION}-amd64 | cut -d@ -f2)
+            [ -n "${DIGEST}" ] || { echo "Failed to retrieve image digest"; exit 1; }
             echo "digest_${COMPONENT}=${DIGEST}" >> "$GITHUB_OUTPUT"
           done
       - name: Upload SBOM artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: sbom-amd64
           path: .build/cert-manager-fips-build/*.cdx.json
@@ -74,6 +79,8 @@ jobs:
 
   build-arm64:
     runs-on: ubuntu-24.04-arm
+    permissions:
+      packages: write
     outputs:
       image_digest_controller: ${{ steps.push.outputs.digest_controller }}
       image_digest_acmesolver: ${{ steps.push.outputs.digest_acmesolver }}
@@ -81,8 +88,10 @@ jobs:
       image_digest_webhook: ${{ steps.push.outputs.digest_webhook }}
       image_digest_startupapicheck: ${{ steps.push.outputs.digest_startupapicheck }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/login-action@v3
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          persist-credentials: false
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -112,12 +121,14 @@ jobs:
           bash build-cert-manager-fips.sh
           for COMPONENT in controller acmesolver cainjector webhook startupapicheck; do
             docker push ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-${COMPONENT}:${VERSION}-arm64
+            sleep 3
             DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' \
               ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-${COMPONENT}:${VERSION}-arm64 | cut -d@ -f2)
+            [ -n "${DIGEST}" ] || { echo "Failed to retrieve image digest"; exit 1; }
             echo "digest_${COMPONENT}=${DIGEST}" >> "$GITHUB_OUTPUT"
           done
       - name: Upload SBOM artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: sbom-arm64
           path: .build/cert-manager-fips-build/*.cdx.json
@@ -125,6 +136,8 @@ jobs:
 
   push-manifest:
     runs-on: ubuntu-24.04
+    permissions:
+      packages: write
     needs: [build-amd64, build-arm64]
     outputs:
       image_digest_controller: ${{ steps.manifest.outputs.image_digest_controller }}
@@ -133,8 +146,10 @@ jobs:
       image_digest_webhook: ${{ steps.manifest.outputs.image_digest_webhook }}
       image_digest_startupapicheck: ${{ steps.manifest.outputs.image_digest_startupapicheck }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/login-action@v3
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          persist-credentials: false
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -183,84 +198,86 @@ jobs:
       attestations: write
       packages: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/login-action@v3
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          persist-credentials: false
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Download amd64 SBOM artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
         with:
           name: sbom-amd64
           path: sbom/
       - name: Download arm64 SBOM artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
         with:
           name: sbom-arm64
           path: sbom/
       - name: Attest amd64 controller image
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be  # v2
         with:
           subject-name: ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-controller
           subject-digest: ${{ needs.build-amd64.outputs.image_digest_controller }}
           push-to-registry: true
       - name: Attest arm64 controller image
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be  # v2
         with:
           subject-name: ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-controller
           subject-digest: ${{ needs.build-arm64.outputs.image_digest_controller }}
           push-to-registry: true
       - name: Attest amd64 acmesolver image
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be  # v2
         with:
           subject-name: ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-acmesolver
           subject-digest: ${{ needs.build-amd64.outputs.image_digest_acmesolver }}
           push-to-registry: true
       - name: Attest arm64 acmesolver image
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be  # v2
         with:
           subject-name: ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-acmesolver
           subject-digest: ${{ needs.build-arm64.outputs.image_digest_acmesolver }}
           push-to-registry: true
       - name: Attest amd64 cainjector image
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be  # v2
         with:
           subject-name: ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-cainjector
           subject-digest: ${{ needs.build-amd64.outputs.image_digest_cainjector }}
           push-to-registry: true
       - name: Attest arm64 cainjector image
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be  # v2
         with:
           subject-name: ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-cainjector
           subject-digest: ${{ needs.build-arm64.outputs.image_digest_cainjector }}
           push-to-registry: true
       - name: Attest amd64 webhook image
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be  # v2
         with:
           subject-name: ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-webhook
           subject-digest: ${{ needs.build-amd64.outputs.image_digest_webhook }}
           push-to-registry: true
       - name: Attest arm64 webhook image
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be  # v2
         with:
           subject-name: ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-webhook
           subject-digest: ${{ needs.build-arm64.outputs.image_digest_webhook }}
           push-to-registry: true
       - name: Attest amd64 startupapicheck image
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be  # v2
         with:
           subject-name: ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-startupapicheck
           subject-digest: ${{ needs.build-amd64.outputs.image_digest_startupapicheck }}
           push-to-registry: true
       - name: Attest arm64 startupapicheck image
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be  # v2
         with:
           subject-name: ghcr.io/${{ github.repository_owner }}/gl-fips-cert-manager-startupapicheck
           subject-digest: ${{ needs.build-arm64.outputs.image_digest_startupapicheck }}
           push-to-registry: true
       - name: Attest SBOMs
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be  # v2
         with:
           subject-path: sbom/*.cdx.json
       - name: Generate SLSA provenance
